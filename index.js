@@ -9,7 +9,10 @@ var fs = require('fs');
 
 app.use(express.json())
 app.get('/v1/obabel', (req, res) => {
-    res.send('Hello World!')
+    
+    name = req.query.storage_hash;
+    full_path = path.join(__dirname, name + '.pdbqt');
+    res.sendFile(full_path);
 });
 
 app.post('/v1/obabel', (req, res) => {
