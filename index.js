@@ -139,9 +139,6 @@ app.post('/v1/obabel', (req, res) => {
                 
                 //execute the obabel binary
                 execFile("obabel", args, options, function(error, stdout, stderr) {
-                    console.log(stdout)
-                    console.log(stderr)
-                    console.log(error) 
                     
                     callback = (error) => {
                         if(!responseIsSent) {
@@ -179,7 +176,6 @@ app.post('/v1/obabel', (req, res) => {
                 res.send('Incorrect arguments provided.')
                 responseIsSent = true;
             }
-            console.log(err)
         }    
     })
 });
