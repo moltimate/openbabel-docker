@@ -17,9 +17,9 @@
     "url": "https://github.com/moltimate/openbabel-docker/issues"
   },
   "dependencies": {
+    "archiver": "^3.1.1",
     "express": "^4.17.1",
     "formidable": "^1.2.1",
-    "googleapis": "^45.0.0",
-    "archiver": "^3.1.1"
+    "googleapis": "^45.0.0"
   }
 }

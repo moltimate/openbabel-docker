@@ -10,18 +10,24 @@ var archiver = require('archiver')
 
 app.use(express.json())
 app.get('/v1/obabel', (req, res) => {
-    responseIsSent = false;
-    jobId = req.query.storage_hash;
-    uploadsPath = path.join(__dirname,'uploads');
-    fullPath = path.join(__dirname,"uploads", jobId);
+    //identifier for this particular file conversion job
+    var jobId = req.query.storage_hash;
+    //path defining the directory the file is to be saved to
+    var uploadsPath = path.join(__dirname,'uploads');
+    //the full path of the file to be saved
+    var fullPath = path.join(__dirname,"uploads", jobId);
+    //the full file path of the file to store openbabel's output text
+    var obabelOutputFilePath = path.join(fullPath,'obabel-output.txt');
+    //Keep track of whether a response has been sent to avoid sending a
+    //redundant response
+    var responseIsSent = false;
     
-    obabelOutputFilePath = path.join(fullPath,'obabel-output.txt')
-    if (!fs.existsSync(fullPath) && !responseIsSent) {
+    if (!fs.existsSync(fullPath)) {
         res.status(400);
         responseIsSent = true;
         return res.send('No job with that ID.');
         
-    }else if (!fs.existsSync(obabelOutputFilePath) && !responseIsSent) {
+    }else if (!fs.existsSync(obabelOutputFilePath)) {
         res.status(300);
         responseIsSent = true;
         return res.send('Job still processing.');
@@ -67,7 +73,7 @@ app.post('/v1/obabel', (req, res) => {
     molecules = []
     fields = {}
     
-    responseIsSent = false;
+    var responseIsSent = false;
     var form = new formidable.IncomingForm();
     form.multiples = true;
     form.parse(req);
@@ -96,6 +102,7 @@ app.post('/v1/obabel', (req, res) => {
     
     form.on('fileBegin', function (name, file){
         
+        //each field in the form whose name starts with "molecule"
         if (name.startsWith('molecule')) {
             molecule = {}
             molecule.name = name
@@ -107,10 +114,14 @@ app.post('/v1/obabel', (req, res) => {
     });
     form.on('end', function() {
         try {
+            //arguments for openbabel
             var args = []
             var options = []
+            //include metadata in the file
             args.push('-m');
+            //set the input file type to pdb
             args.push('-ipdb');
+            //add each of the  
             for(molecule of molecules){
                 
                 molecule_path = path.join(directoryPath,molecule.name )
@@ -118,6 +129,7 @@ app.post('/v1/obabel', (req, res) => {
                 args.push('"' + molecule_path + '"');
                 
             }
+            //set the output file type to pdbqt
             args.push('-opdbqt');
             try {
                 obable_program = path.join(__dirname, "obabel");
@@ -125,6 +137,7 @@ app.post('/v1/obabel', (req, res) => {
                 options = {};
                 options.shell = true;
                 
+                //execute the obabel binary
                 execFile("obabel", args, options, function(error, stdout, stderr) {
                     console.log(stdout)
                     console.log(stderr)
@@ -151,6 +164,7 @@ app.post('/v1/obabel', (req, res) => {
                 
             }
             catch(error) {
+                //avoid double-sending
                 if(!responseIsSent) {
                     res.status(500)
                     res.send('Execution error: ' + error)
@@ -159,6 +173,7 @@ app.post('/v1/obabel', (req, res) => {
             }
         }
         catch(err) {
+            //avoid double-sending
             if(!responseIsSent) {
                 res.status(400)
                 res.send('Incorrect arguments provided.')
