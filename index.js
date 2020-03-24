@@ -136,6 +136,8 @@ app.post('/v1/obabel', (req, res) => {
 			if('toPDB' in fields && fields['toPDB']){
 				//set the output file type to pdb
 				args.push('-opdb');
+				//together these flags cause the inpur pieces to output as a single complete molecule
+				args.push('-r -c');
 			}else{
 				//set the output file type to pdbqt (This is the default behavior)
 				args.push('-opdbqt');
