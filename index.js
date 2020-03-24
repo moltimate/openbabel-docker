@@ -118,10 +118,14 @@ app.post('/v1/obabel', (req, res) => {
             var args = []
             var options = []
             //include metadata in the file
-            args.push('-m');
-            //set the input file type to pdb
-            args.push('-ipdb');
-            //add each of the  
+            args.push('-m');          
+			if('toPDB' in fields && fields['toPDB'] == "true"){
+				//set the input file type to pdbqt
+				args.push('-ipdbqt');
+			}else{
+				//set the input file type to pdb (the default option)
+				args.push('-ipdb');
+			}
             for(molecule of molecules){
                 
                 molecule_path = path.join(directoryPath,molecule.name )
@@ -129,16 +133,34 @@ app.post('/v1/obabel', (req, res) => {
                 args.push('"' + molecule_path + '"');
                 
             }
-            //set the output file type to pdbqt
-            args.push('-opdbqt');
+			if('toPDB' in fields && fields['toPDB']){
+				//set the output file type to pdb
+				args.push('-opdb');
+			}else{
+				//set the output file type to pdbqt (This is the default behavior)
+				args.push('-opdbqt');
+			}
+			
+			var outputFilePath = '';
+			if('toPDB' in fields && fields['toPDB']){
+				//set the output file type to pdb
+				outputFilePath = path.join(directoryPath,'result.pdb')
+			}else{
+				//set the output file type to pdbqt (This is the default behavior)
+				outputFilePath = path.join(directoryPath,'result.pdbqt')
+			}
+			args.push(`-O${outputFilePath}`);
+            
             try {
                 obable_program = path.join(__dirname, "obabel");
 
                 options = {};
                 options.shell = true;
                 
+				console.log(args.toString())
+				
                 //execute the obabel binary
-                execFile("obabel", args, options, function(error, stdout, stderr) {
+                exec("obabel " + args.join(' '), options, function(error, stdout, stderr) {
                     
                     callback = (error) => {
                         if(!responseIsSent) {
