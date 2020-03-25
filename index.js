@@ -105,24 +105,21 @@ app.post('/v1/obabel', (req, res) => {
         //each field in the form whose name starts with "molecule"
         if (name.startsWith('molecule')) {
             molecule = {}
-            molecule.name = name
+            molecule.name = file.name
             molecules.push(molecule)
         }
 
-        fullPath = path.join(directoryPath, name);
+        fullPath = path.join(directoryPath, file.name);
         file.path = fullPath;
     });
     form.on('end', function() {
         try {
             //arguments for openbabel
             var args = []
-            var options = []
-            //include metadata in the file
-            args.push('-m');          
-			if('toPDB' in fields && fields['toPDB'] == "true"){
-				//set the input file type to pdbqt
-				args.push('-ipdbqt');
-			}else{
+            var options = [] 
+			
+			//does not include -i tag if the value of toPDB is true (so the molecules are combined in one file)
+			if(!('toPDB' in fields) || !(fields['toPDB'] == "true")){
 				//set the input file type to pdb (the default option)
 				args.push('-ipdb');
 			}
@@ -133,12 +130,9 @@ app.post('/v1/obabel', (req, res) => {
                 args.push('"' + molecule_path + '"');
                 
             }
-			if('toPDB' in fields && fields['toPDB']){
-				//set the output file type to pdb
-				args.push('-opdb');
-				//together these flags cause the inpur pieces to output as a single complete molecule
-				args.push('-r -c');
-			}else{
+			
+			//does not include -o tag if the value of toPDB is true (so the molecules are combined in one file)
+			if(!('toPDB' in fields) || !(fields['toPDB'])){
 				//set the output file type to pdbqt (This is the default behavior)
 				args.push('-opdbqt');
 			}
