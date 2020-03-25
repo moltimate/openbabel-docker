@@ -63,7 +63,8 @@ Request body parameters
 
 | Parameter | Type | Function |
 |:----------|:-----|:---------|
-| molecule_n | form data | A .pdb file to be converted to .pdbqt format. Note that any number of molecules can be given, keyed "molecule_1," "molecule_2," etc.|
+| molecule_n | form data | A file to be converted. By default a .pdb file is expected, and will be converted to a .pdbqt file. Note that any number of molecules can be given, keyed "molecule_1," "molecule_2," etc.|
+| toPDB | form data | If true, converts the input .pdbqt file to .pdb format. A single file will be returned containing both molecules if a .pdb macromolecule and a .pdbqt ligand file that resulted from a docking operation are given.|
 
 Output
 
