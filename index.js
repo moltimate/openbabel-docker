@@ -11,16 +11,16 @@ var archiver = require('archiver')
 app.use(express.json())
 app.get('/v1/obabel', (req, res) => {
   //identifier for this particular file conversion job
-  var jobId = req.query.storage_hash;
+  let jobId = req.query.storage_hash;
   //path defining the directory the file is to be saved to
-  var uploadsPath = path.join(__dirname,'uploads');
+  let uploadsPath = path.join(__dirname,'uploads');
   //the full path of the file to be saved
-  var fullPath = path.join(__dirname,"uploads", jobId);
+  let fullPath = path.join(__dirname,"uploads", jobId);
   //the full file path of the file to store openbabel's output text
-  var obabelOutputFilePath = path.join(fullPath,'obabel-output.txt');
+  let obabelOutputFilePath = path.join(fullPath,'obabel-output.txt');
   //Keep track of whether a response has been sent to avoid sending a
   //redundant response
-  var responseIsSent = false;
+  let responseIsSent = false;
   
   if (!fs.existsSync(fullPath)) {
     res.status(400);
@@ -34,21 +34,21 @@ app.get('/v1/obabel', (req, res) => {
       
   } else {
 
-    var outputPath = path.join(uploadsPath, jobId + '.zip');
-    var output = fs.createWriteStream(outputPath);
+    let outputPath = path.join(uploadsPath, jobId + '.zip');
+    let output = fs.createWriteStream(outputPath);
     
-    var archive = archiver('zip', {
+    let archive = archiver('zip', {
       zlib: { level: 9 }
     })
     
     output.on('close', function () {
-      var stat = fs.statSync(outputPath);
+      let stat = fs.statSync(outputPath);
       if(!responseIsSent){
         res.writeHead(200, {
           'Content-Type': 'application/zip',
           'Content-Length': stat.size
         });
-        var readStream = fs.createReadStream(outputPath);
+        let readStream = fs.createReadStream(outputPath);
         readStream.pipe(res)
       }
     })
@@ -74,13 +74,36 @@ app.get('/v1/obabel', (req, res) => {
   }
 });
 
-app.post('/v1/obabel', (req, res) => {
+app.post('/v1/obabel/toPDBQT', (req, res) => {
+  return openbabelFileConversion(req, res,'result.pdbqt',["-xr"])
+});
+
+app.post('/v1/obabel/toPDB', (req, res) => {
+  return openbabelFileConversion(req, res,'result.pdb')
+});
+
+/**
+ * handles logic for an obabel file conversion endpoint. Performs the following actions:
+ *  
+ *  1. Creates a random job ID
+ *  2. Creates a folder for the job named after the ID
+ *  3. Executes openbabel with the received molecules as inputs
+ *  4. Sends a response with the job ID
+ * 
+ * @param {Object} req - Request object received at an Express endpoint
+ * @param {Object} res - Response object returned from Express endpoint
+ * @param {String} outputName - The name of file to be output
+ * @param {String[]} [options]  - A list of obabel option flags to follow output file path (ex: "--addinindex", "-m")
+ * @param {String} [inputFileType] - the name of the file type to expect as input (ex: "pdb", "pdbqt", "sdf")
+ * @param {String} [outputFileType] - the name of the file type to output (ex: "pdb", "pdbqt", "sdf")
+ * 
+ */
+function openbabelFileConversion(req, res, outputName, options = [], inputFileType, outputFileType){
+  let molecules = []
+  let fields = {}
   
-  molecules = []
-  fields = {}
-  
-  var responseIsSent = false;
-  var form = new formidable.IncomingForm();
+  let responseIsSent = false;
+  let form = new formidable.IncomingForm();
   
   form.multiples = true;
   form.parse(req);
@@ -122,47 +145,47 @@ app.post('/v1/obabel', (req, res) => {
   form.on('end', function() {
     try {
       //arguments for openbabel
-      var args = []
-      var options = [] 
+      let args = []
+
+      let execOptions = [] 
     
-      //does not include -i tag if the value of toPDB is true (so the molecules are combined in one file)
-      if(!('toPDB' in fields) || !(fields['toPDB'] == "true")){
-        //set the input file type to pdb (the default option)
-        args.push('-ipdb');
+      //add an input filetype to the command if one was supplied
+      if(inputFileType){
+        args.push(`-i${inputFileType}`)
       }
-      
+
+      //add the paths to each of the submitted molecules
       for(molecule of molecules){
         molecule_path = path.join(directoryPath,molecule.name )
         args.push('"' + molecule_path + '"');
       }
     
-      //does not include -o tag if the value of toPDB is true (so the molecules are combined in one file)
-      if(!('toPDB' in fields) || !(fields['toPDB'])){
-        //set the output file type to pdbqt (This is the default behavior)
-        args.push('-opdbqt');
+      //add an output filetype to the command if one was supplied
+      if(outputFileType){
+        args.push(`-o${outputFileType}`)
       }
       
-      var outputFilePath = '';
-      if('toPDB' in fields && fields['toPDB']){
-        //set the output file type to pdb
-        outputFilePath = path.join(directoryPath,'result.pdb')
-      }else{
-        //set the output file type to pdbqt (This is the default behavior)
-        outputFilePath = path.join(directoryPath,'result.pdbqt')
-      }
+      let outputFilePath = '';
+      //set the output file name and type
+      outputFilePath = path.join(directoryPath,outputName)
       
       args.push(`-O${outputFilePath}`);
       
+      //add all specified options to the command
+      for(let option in options){
+        args.push(option);
+      }
+
       try {
         obable_program = path.join(__dirname, "obabel");
 
-        options = {};
-        options.shell = true;
+        execOptions = {};
+        execOptions.shell = true;
         
         console.log(args.toString())
         
         //execute the obabel binary
-        exec("obabel " + args.join(' '), options, function(error, stdout, stderr) {
+        exec("obabel " + args.join(' '), execOptions, function(error, stdout, stderr) {
           callback = (error) => {
             if(!responseIsSent) {
               res.status(500)
@@ -170,7 +193,7 @@ app.post('/v1/obabel', (req, res) => {
               responseIsSent = true;
             }            
           }
-          outputTextPath = path.join(directoryPath,'obabel-output.txt')
+          outputTextPath = path.join(directoryPath, "obabel-output.txt")
           fs.writeFile(outputTextPath, stdout, callback)
           fs.appendFile(outputTextPath, stderr, callback)
           fs.appendFile(outputTextPath, error, callback)
@@ -201,7 +224,7 @@ app.post('/v1/obabel', (req, res) => {
       }
     }    
   })
-});
+}
 
 app.listen(8000, () => {
   console.log('Listening on port 8000.')
