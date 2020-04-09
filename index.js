@@ -75,7 +75,7 @@ app.get('/v1/obabel', (req, res) => {
 });
 
 app.post('/v1/obabel/toPDBQT', (req, res) => {
-  return openbabelFileConversion(req, res,'result.pdbqt',["-xr"])
+  return openbabelFileConversion(req, res,'result.pdbqt')
 });
 
 app.post('/v1/obabel/toPDB', (req, res) => {
@@ -172,9 +172,12 @@ function openbabelFileConversion(req, res, outputName, options = [], inputFileTy
       args.push(`-O${outputFilePath}`);
       
       //add all specified options to the command
-      for(let option in options){
+      for(option of options){
         args.push(option);
       }
+	  
+	  if(fields.options)
+		args.push(fields.options);
 
       try {
         obable_program = path.join(__dirname, "obabel");

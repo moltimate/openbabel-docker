@@ -65,6 +65,7 @@ Request body parameters
 | Parameter | Type | Function |
 |:----------|:-----|:---------|
 | molecule_n | form data | A file to be converted. A .pdbqt file is expected, and will be converted to a .pdb file. Note that any number of molecules can be given, keyed "molecule_1," "molecule_2," etc. If a ligand and a macromolecule are given, they will be combined into a single output file|
+| options | form data | String of additional options to pass to OpenBabel at runtime. Optional. |
 
 Output
 
@@ -79,6 +80,7 @@ Request body parameters
 | Parameter | Type | Function |
 |:----------|:-----|:---------|
 | molecule_n | form data | A file to be converted. By default a .pdb file is expected, and will be converted to a .pdbqt file. Note that any number of molecules can be given, keyed "molecule_1," "molecule_2," etc.|
+| options | form data | String of additional options to pass to OpenBabel at runtime. Optional. |
 
 Output
 
