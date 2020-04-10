@@ -46,7 +46,8 @@ This briefly summarizes all API endpoints.
 
 | HTTP Method | Endpoint | Function |
 |:------------|:---------|:---------|
-| POST | [/v1/obabel](#post-obabel) | Submits .pdb files for conversion to pdbqt file format |
+| POST | [/v1/obabel/toPDB](#post-pdb) | Submits .pdbqt files for combination and conversion to pdb file format |
+| POST | [/v1/obabel/toPDBQT](#post-pdbqt) | Submits files for conversion to pdbqt file format |
 | GET | [/v1/obabel/{storage_hash}](#get-obabel) | Returns a zip file of pdbqt files that were previously submitted as .pdb files |
 
 
@@ -55,20 +56,36 @@ This briefly summarizes all API endpoints.
 
 This outlines the API's endpoints, request types, and expected request parameters or JSON payload.
 
-<a name="post-obabel"></a>
-##### POST /v1/obabel
-###### Submits a number of .pdb files to Open Babel for conversion
-
+<a name="post-pdb"></a>
+##### POST /v1/obabel/toPDB
+###### Submits .pdbqt files for combination and conversion to pdb file format
+ 
 Request body parameters
 
 | Parameter | Type | Function |
 |:----------|:-----|:---------|
-| molecule_n | form data | A .pdb file to be converted to .pdbqt format. Note that any number of molecules can be given, keyed "molecule_1," "molecule_2," etc.|
+| molecule_n | form data | A file to be converted. A .pdbqt file is expected, and will be converted to a .pdb file. Note that any number of molecules can be given, keyed "molecule_1," "molecule_2," etc. If a ligand and a macromolecule are given, they will be combined into a single output file|
+| options | form data | String of additional options to pass to OpenBabel at runtime. Optional. |
 
 Output
 
 Returns a storage hash value which is used to retrieve the converted files. (status: 200)
-) 
+ 
+<a name="post-pdbqt"></a>
+##### POST /v1/obabel/toPDB
+###### Submits a number of molecule files to Open Babel for conversion to .pdbqt format
+ 
+Request body parameters
+
+| Parameter | Type | Function |
+|:----------|:-----|:---------|
+| molecule_n | form data | A file to be converted. By default a .pdb file is expected, and will be converted to a .pdbqt file. Note that any number of molecules can be given, keyed "molecule_1," "molecule_2," etc.|
+| options | form data | String of additional options to pass to OpenBabel at runtime. Optional. |
+
+Output
+
+Returns a storage hash value which is used to retrieve the converted files. (status: 200)
+ 
 
 <a name="get-obabel"></a>
 ##### GET /v1/obabel/?storage_hash={storage_hash}

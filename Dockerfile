@@ -1,4 +1,4 @@
-FROM ubuntu:18.04
+FROM ubuntu:19.10
 
 # Update Ubuntu Software Repo and install curl
 RUN apt-get update && apt-get install curl --yes
