@@ -165,12 +165,12 @@ function openbabelFileConversion(req, res, outputName, options = [], inputFileTy
     form.on('fileBegin', function (name, file){
       //each field in the form whose name starts with "molecule"
       if (name.startsWith('molecule')) {
-        molecule = {}
+        let molecule = {}
         molecule.name = file.name
         molecules.push(molecule)
       }
 
-      fullPath = path.join(directoryPath, file.name);
+      let fullPath = path.join(directoryPath, file.name);
       file.path = fullPath;
     });
     form.on('end', function() {
@@ -186,7 +186,7 @@ function openbabelFileConversion(req, res, outputName, options = [], inputFileTy
 
         //add the paths to each of the submitted molecules
         for(molecule of molecules){
-          molecule_path = path.join(directoryPath,molecule.name )
+          let molecule_path = path.join(directoryPath,molecule.name )
           args.push('"' + molecule_path + '"');
         }
       
@@ -224,7 +224,7 @@ function openbabelFileConversion(req, res, outputName, options = [], inputFileTy
                 responseIsSent = true;
               }            
             }
-            outputTextPath = path.join(directoryPath, "obabel-output.txt")
+            let outputTextPath = path.join(directoryPath, "obabel-output.txt")
             fs.writeFile(outputTextPath, stdout, callback)
             fs.appendFile(outputTextPath, stderr, callback)
             fs.appendFile(outputTextPath, error, callback)
