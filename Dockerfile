@@ -13,6 +13,9 @@ RUN curl -sL https://deb.nodesource.com/setup_12.x | bash - && \
 # Create openbabel directory
 WORKDIR /opt/obabel
 
+# Create required uploads directory
+RUN mkdir uploads
+
 # Copy package.json into work directory
 COPY package.json .
 
