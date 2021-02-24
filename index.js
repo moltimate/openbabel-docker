@@ -1,6 +1,9 @@
 const express = require('express');
 const crypto = require('crypto');
-const {Storage} = require('@google-cloud/storage');
+
+var AWS = require('aws-sdk');
+AWS.config.loadFromPath('./config.json');
+
 var execFile = require('child_process').execFile;
 var exec = require('child_process').exec;
 const app = express();
@@ -10,16 +13,32 @@ var fs = require('fs');
 var archiver = require('archiver');
 
 // GCS usage defined by environment variable
-const useCloudStorage = process.env.CLOUD_STORAGE=="true";
-const bucket = "obabel-production";
-const storage = new Storage();
+const useCloudStorage = true//process.env.CLOUD_STORAGE == "true"; //process.env.CLOUD_STORAGE=="true";
+const bucket = "openbabel-prod";
+
+var s3 = new AWS.S3({apiVersion: '2006-03-01'});
 
 //path defining the local directory files are saved to
+//__dirname = the current working directory local /cloud)
 const uploadsPath = path.join(__dirname,'uploads');
 
 const checkExists = function(filepath, callback) {
   if (useCloudStorage) {
-    return storage.bucket(bucket).file(filepath).exists(callback);
+    console.log('Looking for path', filepath);
+    var params = {
+      Bucket: bucket, 
+      MaxKeys: 30
+     };
+     s3.listObjectsV2(params, function(err, data) {
+       if (err) callback(err, null); // an error occurred how to return an error?
+       else {
+          console.log(data);
+          //aws doesn't do file/folder structure it's just a list of things in the bucket
+          data['Contents'].map(obj => { if(obj.Key + '/' == filepath) callback(null, data);
+         });
+         callback('Job Not Found', null);
+        }
+     });
   }
   else {
     // For local storage, prepend the upload directory path when checking files
@@ -27,22 +46,32 @@ const checkExists = function(filepath, callback) {
   }
 }
 
+//get request to see if a job is done and getting the results
 app.use(express.json())
 app.get('/v1/obabel', (req, res) => {
   //identifier for this particular file conversion job
   let jobId = req.query.storage_hash;
+  if(jobId == null || jobId == undefined) {
+    res.status(400);
+    return res.send('Missing Job Id');
+  }
+  console.log('jobId', jobId);
   
   //the full path of the file to be saved
   let jobPath = path.join(jobId+"/");
+  console.log('jobPath', jobPath);
   
   //the path of the zipped response file
-  let responsePath = useCloudStorage ? path.join(jobId,'response.zip') : jobId+'.zip';
-  
+  console.log('cloud storage in use', useCloudStorage);
+  let responsePath = useCloudStorage ? path.join(jobId,'response.zip') : jobId +'.zip';
+  console.log('responsePath', responsePath);
   //Keep track of whether a response has been sent to avoid sending a
   //redundant response
   let responseIsSent = false;
   
+  //call to find if the path and job exists/is active
   checkExists(jobPath, (err, exists) => {
+    console.log('check Exists Callback');
     if (err) {
       res.status(500);
       responseIsSent = true;
@@ -56,16 +85,27 @@ app.get('/v1/obabel', (req, res) => {
           return res.send(err);
         }
         else if (exists) {
+          console.log('response path exists');
           try{
+            //trying to read the job
             let output=null;
 
             if (useCloudStorage) {
-              output = storage.bucket(bucket).file(responsePath).createReadStream();
+              var s3Output = s3.getObject({ Bucket: bucket, Key: responsePath }, function(err, data) { 
+                if(err) {
+                  console.log(err)
+                  res.status(500);
+                  res.send("Could not retrieve job from storage: "+err);
+                } else {
+                  output = s3Output.Body.createReadStream();
+                }
+              });
+              //output = storage.bucket(bucket).file(responsePath).createReadStream();
             }
             else {
               output = fs.createReadStream(path.join(uploadsPath, jobId+'.zip'));
             }
-  
+            //return success code 200, with a zip file of the response from the storage  
             res.writeHead(200, {
               'Content-Type': 'application/zip'
             });
@@ -92,10 +132,12 @@ app.get('/v1/obabel', (req, res) => {
   });
 });
 
+//main entry point for a post request to convert a pdb file to pdbqt file
 app.post('/v1/obabel/toPDBQT', (req, res) => {
   return openbabelFileConversion(req, res,'result.pdbqt')
 });
 
+//main entry point for a post request to convert a pdbqt file to a pdb file
 app.post('/v1/obabel/toPDB', (req, res) => {
   return openbabelFileConversion(req, res,'result.pdb')
 });
@@ -129,8 +171,9 @@ function openbabelFileConversion(req, res, outputName, options = [], inputFileTy
     .toString())
     .digest('hex');
 
-  let jobPath = path.join(nameHash+"/")
-  let directoryPath = path.join(uploadsPath, jobPath)
+  //combine the path and the hash to find the file/directory for the local/aws storage
+  let jobPath = path.join(nameHash+"/");
+  let directoryPath = path.join(uploadsPath, jobPath);
   
   // Ensure there is no hash collision
   checkExists(jobPath, (err, exists) => {
@@ -143,17 +186,22 @@ function openbabelFileConversion(req, res, outputName, options = [], inputFileTy
     }
     // Make the storage space for the job
     fs.mkdirSync(directoryPath);
+
     if (useCloudStorage) {
-      storage.bucket(bucket).file(jobPath).save('', {resumable:false}, (err) => {
-        if (err) {
+      var objectParams = {Bucket: bucket, Key: jobPath, Body: ''};
+      // Create object upload promise
+      var uploadPromise = s3.putObject(objectParams).promise();
+      uploadPromise.then(
+        function(data) {
+          console.log("Successfully uploaded data to " + bucketName + "/" + keyName);
+        }).catch(error => {
           console.log(err);
           if(!responseIsSent) {
             res.status(500)
             res.send('Error storing result')
             responseIsSent = true;
-          } 
-        }
-      })
+          }
+        });
     }
 
     form.multiples = true;
@@ -173,6 +221,7 @@ function openbabelFileConversion(req, res, outputName, options = [], inputFileTy
       let fullPath = path.join(directoryPath, file.name);
       file.path = fullPath;
     });
+
     form.on('end', function() {
       try {
         //arguments for openbabel
@@ -233,15 +282,26 @@ function openbabelFileConversion(req, res, outputName, options = [], inputFileTy
             let output = null;
 
             if (useCloudStorage) {
+              var params = {Bucket: bucket, Key: path.join(jobPath, "response.zip"), Body: stream};
+              //write the response to the response.zip file folder and create write stream (or just upload the response?)
               output = storage.bucket(bucket).file(path.join(jobPath, "response.zip")).createWriteStream({resumable:false});
-              output.on('finish', () => {
-                fs.rmdir(directoryPath, {recursive:true}, (err) => {
-                  if (err)
-                  console.error("Unable to remove local job directory "+err);
-                });
-              })
+              s3.upload(params, function(err, data) {
+                  if(err) {
+                    if(!responseIsSent) {
+                      res.status(500)
+                      res.send('Saving Response Error ' + error)
+                      responseIsSent = true;
+                    }  
+                  } else {
+                    fs.rmdir(directoryPath, {recursive:true}, (err) => {
+                      if (err)
+                      console.error("Unable to remove local job directory "+err);
+                    });
+                  }
+              });
             }
             else {
+              //create local writer stream and write
               let outputPath = path.join(uploadsPath, nameHash+'.zip');
               output = fs.createWriteStream(outputPath);
             }
@@ -249,7 +309,7 @@ function openbabelFileConversion(req, res, outputName, options = [], inputFileTy
             let archive = archiver('zip', {
               zlib: { level: 9 }
             })
-            
+            //make an archive of the response directory
             archive.on('error', function (err) {
               if(!responseIsSent){
                 res.status(500);
