@@ -20,7 +20,9 @@ var s3 = new AWS.S3({apiVersion: '2006-03-01'});
 
 //path defining the local directory files are saved to
 //__dirname = the current working directory local /cloud)
+console.log('__dirname', __dirname);
 const uploadsPath = path.join(__dirname,'uploads');
+console.log('uploadsPath', uploadsPath);
 
 const checkExists = function(filepath, callback) {
   if (useCloudStorage) {
