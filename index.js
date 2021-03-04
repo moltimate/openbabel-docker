@@ -78,12 +78,9 @@ app.get('/v1/obabel', (req, res) => {
         return res.send(err);
       }
       else if (exists) {
-        console.log('response path exists');
-        console.log('response inside checkExists', res);
         try{
           //trying to read the job
           let output=null;
-          console.log('in Try');
           if (useCloudStorage) {
            output = s3.getObject({ Bucket: bucket, Key: responsePath }).createReadStream().on('error', error => {
               console.log(err);
@@ -94,9 +91,7 @@ app.get('/v1/obabel', (req, res) => {
           else {
             output = fs.createReadStream(path.join(uploadsPath, jobId+'.zip'));
           }
-          console.log('Writing result to response');
           //return success code 200, with a zip file of the response from the storage  
-          console.log('response before trying to pipe to it', res);
           res.writeHead(200, {
             'Content-Type': 'application/zip'
           });
@@ -182,7 +177,6 @@ function openbabelFileConversion(req, res, outputName, options = [], inputFileTy
             responseIsSent = true;
           }
         });
-        console.log('uploaded directory')
     }
 
     form.multiples = true;
