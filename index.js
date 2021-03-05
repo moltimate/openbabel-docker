@@ -2,7 +2,8 @@ const express = require('express');
 const crypto = require('crypto');
 
 var AWS = require('aws-sdk');
-AWS.config.loadFromPath('./config.json');
+//UNCOMMENT FOR LOCAL TESTING ADD config.json file with your AWS access and secret key here 
+//AWS.config.loadFromPath('./config.json');
 
 var execFile = require('child_process').execFile;
 var exec = require('child_process').exec;
@@ -14,7 +15,7 @@ var archiver = require('archiver');
 
 // GCS usage defined by environment variable
 const useCloudStorage = true//process.env.CLOUD_STORAGE == "true"; //process.env.CLOUD_STORAGE=="true";
-const bucket = "openbabel-prod";
+const bucket = "openbabel-prod"; //set the bucket that aws s3 storage should be using (bucket needs to already exist)
 
 var s3 = new AWS.S3({apiVersion: '2006-03-01'});
 
@@ -250,6 +251,7 @@ function openbabelFileConversion(req, res, outputName, options = [], inputFileTy
             }
             //write all files locally
             let outputTextPath = path.join(directoryPath, "obabel-output.txt");
+            
             fs.writeFileSync(outputTextPath, stdout, callback);
             fs.appendFileSync(outputTextPath, stderr, callback);
             fs.appendFileSync(outputTextPath, error, callback);
