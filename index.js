@@ -74,6 +74,7 @@ app.get('/v1/obabel', (req, res) => {
   //call to find if the path and job exists/is active
     checkExists(responsePath, (err, exists) => {
       if (err) {
+        console.log('Check Exists Errored: ', err);
         res.status(500);
         responseIsSent = true;
         return res.send(err);
@@ -149,12 +150,16 @@ function openbabelFileConversion(req, res, outputName, options = [], inputFileTy
 
   //combine the path and the hash to find the file/directory for the local/aws storage
   let jobPath = path.join(nameHash+"/");
+  console.log('Job Path', jobPath);
   let directoryPath = path.join(uploadsPath, jobPath);
+  console.log('Directory Path', directoryPath);
   
   // Ensure there is no hash collision
   checkExists(path.join(jobPath, "response.zip"), (err, exists) => {
     if (err || exists) {
+      console.log('Path Exists or ')
       if(!responseIsSent) {
+        console.log('Error on check Exists');
         res.status(500);
         res.send("Storage Error. Please try again.");
         responseIsSent = true;
@@ -163,22 +168,23 @@ function openbabelFileConversion(req, res, outputName, options = [], inputFileTy
     // Make the storage space for the job
     fs.mkdirSync(directoryPath);
 
-    if (useCloudStorage) {
-      var objectParams = {Bucket: bucket, Key: jobPath, Body: ''};
-      // Create object upload promise
-      var uploadPromise = s3.putObject(objectParams).promise();
-      uploadPromise.then(
-        function(data) {
-          console.log("Successfully uploaded data to " + bucketName + "/" + keyName);
-        }).catch(error => {
-          console.log(err);
-          if(!responseIsSent) {
-            res.status(500)
-            res.send('Error storing result')
-            responseIsSent = true;
-          }
-        });
-    }
+    // if (useCloudStorage) {
+    //   var objectParams = {Bucket: bucket, Key: jobPath, Body: ''};
+    //   // Create object upload promise
+    //   console.log(objectParams);
+    //   var uploadPromise = s3.putObject(objectParams).promise();
+    //   uploadPromise.then(
+    //     function(data) {
+    //       console.log("Successfully uploaded data to " + bucketName + "/" + keyName);
+    //     }).catch(error => {
+    //       console.log('Error Creating folder', err);
+    //       if(!responseIsSent) {
+    //         res.status(500)
+    //         res.send('Error storing result')
+    //         responseIsSent = true;
+    //       }
+    //     });
+    // }
 
     form.multiples = true;
     form.parse(req);
