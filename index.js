@@ -14,7 +14,7 @@ var fs = require('fs');
 var archiver = require('archiver');
 
 // GCS usage defined by environment variable
-const useCloudStorage = true//process.env.CLOUD_STORAGE == "true"; //process.env.CLOUD_STORAGE=="true";
+const useCloudStorage = true;//process.env.CLOUD_STORAGE == "true"; //process.env.CLOUD_STORAGE=="true";
 const bucket = "openbabel-prod"; //set the bucket that aws s3 storage should be using (bucket needs to already exist)
 
 var s3 = new AWS.S3({apiVersion: '2006-03-01'});
@@ -29,7 +29,7 @@ const checkExists = function(filepath, callback) {
   if (useCloudStorage) {
     var params = {
       Bucket: bucket, 
-      MaxKeys: 30
+      MaxKeys: 100
      };
      s3.listObjectsV2(params, function(err, data) {
        if (err) callback(err, null); // an error occurred how to return an error?
@@ -51,7 +51,6 @@ app.use(express.json())
 app.get('/v1/obabel', (req, res) => {
   //identifier for this particular file conversion job
   let jobId = req.query.storage_hash;
-  console.log('response', res);
   if(jobId == null || jobId == undefined) {
     console.log('jobId = null or undefined');
     res.status(400);
@@ -105,7 +104,6 @@ app.get('/v1/obabel', (req, res) => {
           return res.send("Could not retrieve job from storage: "+err);
         }
       }
-      
     });
 });
 
