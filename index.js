@@ -28,13 +28,11 @@ console.log('uploadsPath', uploadsPath);
 const checkExists = function(filepath, callback) {
   if (useCloudStorage) {
     var params = {
-      Bucket: bucket, 
-      MaxKeys: 100
+      Bucket: bucket
      };
      s3.listObjectsV2(params, function(err, data) {
        if (err) callback(err, null); // an error occurred how to return an error?
        else {
-          //aws doesn't do file/folder structure it's just a list of things in the bucket
           data['Contents'].map(obj => { if(obj.Key == filepath) callback(null, data); });
           return callback(null, null); //file doesn't exist
         }
