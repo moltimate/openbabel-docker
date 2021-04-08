@@ -47,11 +47,14 @@ const checkExists = function(filepath, callback) {
 //get request to see if a job is done and getting the results
 app.use(express.json())
 app.get('/v1/obabel', (req, res) => {
+  let responseIsSent = false;
+
   //identifier for this particular file conversion job
   let jobId = req.query.storage_hash;
   if(jobId == null || jobId == undefined) {
     console.log('jobId = null or undefined');
     res.status(400);
+    responseIsSent = true;
     return res.send('Missing Job Id');
   }
   console.log('jobId', jobId);
@@ -65,7 +68,6 @@ app.get('/v1/obabel', (req, res) => {
   console.log('responsePath', responsePath);
   //Keep track of whether a response has been sent to avoid sending a
   //redundant response
-  let responseIsSent = false;
   //see if the folder exists to get the response
   //see if the response.zip exists to send response as result
   //call to find if the path and job exists/is active
@@ -94,11 +96,13 @@ app.get('/v1/obabel', (req, res) => {
           res.writeHead(200, {
             'Content-Type': 'application/zip'
           });
+          responseIsSent = true;
           output.pipe(res);
 
         } catch(err) {
           console.log(err)
           res.status(500);
+          responseIsSent = true;
           return res.send("Could not retrieve job from storage: "+err);
         }
       }
