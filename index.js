@@ -166,24 +166,6 @@ function openbabelFileConversion(req, res, outputName, options = [], inputFileTy
     // Make the storage space for the job
     fs.mkdirSync(directoryPath);
 
-    // if (useCloudStorage) {
-    //   var objectParams = {Bucket: bucket, Key: jobPath, Body: ''};
-    //   // Create object upload promise
-    //   console.log(objectParams);
-    //   var uploadPromise = s3.putObject(objectParams).promise();
-    //   uploadPromise.then(
-    //     function(data) {
-    //       console.log("Successfully uploaded data to " + bucketName + "/" + keyName);
-    //     }).catch(error => {
-    //       console.log('Error Creating folder', err);
-    //       if(!responseIsSent) {
-    //         res.status(500)
-    //         res.send('Error storing result')
-    //         responseIsSent = true;
-    //       }
-    //     });
-    // }
-
     form.multiples = true;
     form.parse(req);
     form.on('field', function(name, value) {
