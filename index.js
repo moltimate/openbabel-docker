@@ -1,6 +1,10 @@
 const express = require('express');
 const crypto = require('crypto');
-const {Storage} = require('@google-cloud/storage');
+
+var AWS = require('aws-sdk');
+//UNCOMMENT FOR LOCAL TESTING ADD config.json file with your AWS access and secret key here 
+//AWS.config.loadFromPath('./config.json');
+
 var execFile = require('child_process').execFile;
 var exec = require('child_process').exec;
 const app = express();
@@ -10,16 +14,29 @@ var fs = require('fs');
 var archiver = require('archiver');
 
 // GCS usage defined by environment variable
-const useCloudStorage = process.env.CLOUD_STORAGE=="true";
-const bucket = "obabel-production";
-const storage = new Storage();
+const useCloudStorage = true;//process.env.CLOUD_STORAGE == "true"; //process.env.CLOUD_STORAGE=="true";
+const bucket = "openbabel-prod"; //set the bucket that aws s3 storage should be using (bucket needs to already exist)
+
+var s3 = new AWS.S3({apiVersion: '2006-03-01'});
 
 //path defining the local directory files are saved to
+//__dirname = the current working directory local /cloud)
+console.log('__dirname', __dirname);
 const uploadsPath = path.join(__dirname,'uploads');
+console.log('uploadsPath', uploadsPath);
 
 const checkExists = function(filepath, callback) {
   if (useCloudStorage) {
-    return storage.bucket(bucket).file(filepath).exists(callback);
+    var params = {
+      Bucket: bucket
+     };
+     s3.listObjectsV2(params, function(err, data) {
+       if (err) callback(err, null); // an error occurred how to return an error?
+       else {
+          data['Contents'].map(obj => { if(obj.Key == filepath) callback(null, data); });
+          return callback(null, null); //file doesn't exist
+        }
+     });
   }
   else {
     // For local storage, prepend the upload directory path when checking files
@@ -27,75 +44,77 @@ const checkExists = function(filepath, callback) {
   }
 }
 
+//get request to see if a job is done and getting the results
 app.use(express.json())
 app.get('/v1/obabel', (req, res) => {
+  let responseIsSent = false;
+
   //identifier for this particular file conversion job
   let jobId = req.query.storage_hash;
+  if(jobId == null || jobId == undefined) {
+    console.log('jobId = null or undefined');
+    res.status(400);
+    responseIsSent = true;
+    return res.send('Missing Job Id');
+  }
+  console.log('jobId', jobId);
   
   //the full path of the file to be saved
   let jobPath = path.join(jobId+"/");
+  console.log('jobPath', jobPath);
   
   //the path of the zipped response file
-  let responsePath = useCloudStorage ? path.join(jobId,'response.zip') : jobId+'.zip';
-  
+  let responsePath = useCloudStorage ? path.join(jobId,'response.zip') : jobId +'.zip';
+  console.log('responsePath', responsePath);
   //Keep track of whether a response has been sent to avoid sending a
   //redundant response
-  let responseIsSent = false;
-  
-  checkExists(jobPath, (err, exists) => {
-    if (err) {
-      res.status(500);
-      responseIsSent = true;
-      return res.send(err);
-    }
-    else if (exists) {
-      checkExists(responsePath, (err, exists) => {
-        if (err) {
+  //see if the folder exists to get the response
+  //see if the response.zip exists to send response as result
+  //call to find if the path and job exists/is active
+    checkExists(responsePath, (err, exists) => {
+      if (err) {
+        console.log('Check Exists Errored: ', err);
+        res.status(500);
+        responseIsSent = true;
+        return res.send(err);
+      }
+      else if (exists) {
+        try{
+          //trying to read the job
+          let output=null;
+          if (useCloudStorage) {
+           output = s3.getObject({ Bucket: bucket, Key: responsePath }).createReadStream().on('error', error => {
+              console.log(err);
+              res.status(500);
+              return res.send("Could not retrieve job from storage: " + err);
+            });
+          }
+          else {
+            output = fs.createReadStream(path.join(uploadsPath, jobId+'.zip'));
+          }
+          //return success code 200, with a zip file of the response from the storage  
+          res.writeHead(200, {
+            'Content-Type': 'application/zip'
+          });
+          responseIsSent = true;
+          output.pipe(res);
+
+        } catch(err) {
+          console.log(err)
           res.status(500);
           responseIsSent = true;
-          return res.send(err);
+          return res.send("Could not retrieve job from storage: "+err);
         }
-        else if (exists) {
-          try{
-            let output=null;
-
-            if (useCloudStorage) {
-              output = storage.bucket(bucket).file(responsePath).createReadStream();
-            }
-            else {
-              output = fs.createReadStream(path.join(uploadsPath, jobId+'.zip'));
-            }
-  
-            res.writeHead(200, {
-              'Content-Type': 'application/zip'
-            });
-            output.pipe(res);
-
-          } catch(err) {
-            console.log(err)
-            res.status(500);
-            res.send("Could not retrieve job from storage: "+err);
-          }
-        }
-        else {
-          res.status(300);
-          responseIsSent = true;
-          return res.send('Job still processing.');
-        }
-      })
-    }
-    else {
-      res.status(400);
-      responseIsSent = true;
-      return res.send('No job with that ID.');
-    }
-  });
+      }
+    });
 });
 
+//main entry point for a post request to convert a pdb file to pdbqt file
 app.post('/v1/obabel/toPDBQT', (req, res) => {
   return openbabelFileConversion(req, res,'result.pdbqt')
 });
 
+//main entry point for a post request to convert a pdbqt file to a pdb file
 app.post('/v1/obabel/toPDB', (req, res) => {
   return openbabelFileConversion(req, res,'result.pdb')
 });
@@ -129,13 +148,18 @@ function openbabelFileConversion(req, res, outputName, options = [], inputFileTy
     .toString())
     .digest('hex');
 
-  let jobPath = path.join(nameHash+"/")
-  let directoryPath = path.join(uploadsPath, jobPath)
+  //combine the path and the hash to find the file/directory for the local/aws storage
+  let jobPath = path.join(nameHash+"/");
+  console.log('Job Path', jobPath);
+  let directoryPath = path.join(uploadsPath, jobPath);
+  console.log('Directory Path', directoryPath);
   
   // Ensure there is no hash collision
-  checkExists(jobPath, (err, exists) => {
+  checkExists(path.join(jobPath, "response.zip"), (err, exists) => {
     if (err || exists) {
+      console.log('Path Exists or ')
       if(!responseIsSent) {
+        console.log('Error on check Exists');
         res.status(500);
         res.send("Storage Error. Please try again.");
         responseIsSent = true;
@@ -143,18 +167,6 @@ function openbabelFileConversion(req, res, outputName, options = [], inputFileTy
     }
     // Make the storage space for the job
     fs.mkdirSync(directoryPath);
-    if (useCloudStorage) {
-      storage.bucket(bucket).file(jobPath).save('', {resumable:false}, (err) => {
-        if (err) {
-          console.log(err);
-          if(!responseIsSent) {
-            res.status(500)
-            res.send('Error storing result')
-            responseIsSent = true;
-          } 
-        }
-      })
-    }
 
     form.multiples = true;
     form.parse(req);
@@ -173,6 +185,7 @@ function openbabelFileConversion(req, res, outputName, options = [], inputFileTy
       let fullPath = path.join(directoryPath, file.name);
       file.path = fullPath;
     });
+
     form.on('end', function() {
       try {
         //arguments for openbabel
@@ -186,7 +199,7 @@ function openbabelFileConversion(req, res, outputName, options = [], inputFileTy
 
         //add the paths to each of the submitted molecules
         for(molecule of molecules){
-          let molecule_path = path.join(directoryPath,molecule.name )
+          let molecule_path = path.join(directoryPath, molecule.name )
           args.push('"' + molecule_path + '"');
         }
       
@@ -224,32 +237,22 @@ function openbabelFileConversion(req, res, outputName, options = [], inputFileTy
                 responseIsSent = true;
               }            
             }
-            let outputTextPath = path.join(directoryPath, "obabel-output.txt")
-            fs.writeFile(outputTextPath, stdout, callback)
-            fs.appendFile(outputTextPath, stderr, callback)
-            fs.appendFile(outputTextPath, error, callback)
+            //write all files locally
+            let outputTextPath = path.join(directoryPath, "obabel-output.txt");
+            
+            fs.writeFileSync(outputTextPath, stdout, callback);
+            fs.appendFileSync(outputTextPath, stderr, callback);
+            fs.appendFileSync(outputTextPath, error, callback);
 
             // Package job files for storage and retrieval
-            let output = null;
-
-            if (useCloudStorage) {
-              output = storage.bucket(bucket).file(path.join(jobPath, "response.zip")).createWriteStream({resumable:false});
-              output.on('finish', () => {
-                fs.rmdir(directoryPath, {recursive:true}, (err) => {
-                  if (err)
-                  console.error("Unable to remove local job directory "+err);
-                });
-              })
-            }
-            else {
-              let outputPath = path.join(uploadsPath, nameHash+'.zip');
-              output = fs.createWriteStream(outputPath);
-            }
+            
+            //create local writer stream and write
+            let outputPath = path.join(uploadsPath, nameHash+'.zip');
+            let output = fs.createWriteStream(outputPath);
 
             let archive = archiver('zip', {
               zlib: { level: 9 }
-            })
-            
+            });
             archive.on('error', function (err) {
               if(!responseIsSent){
                 res.status(500);
@@ -257,16 +260,46 @@ function openbabelFileConversion(req, res, outputName, options = [], inputFileTy
                 responseIsSent = true;
                 return res.send('File archiving error.');
               }
-            })
+            });
+            //setting where the archive data will go to (file path)
+            archive.pipe(output);
 
-            archive.pipe(output)
-            
             try{
               archive.directory(directoryPath, "", { name: nameHash })
               archive.finalize();
+
             } catch(error) {
-              console.log(error)
+              console.log(error);
+              if(!responseIsSent) {
+                res.status(500)
+                res.send('Execution error: ' + error)
+                responseIsSent = true;
+              }
             }
+            output.on('close', () => 
+            {
+              if(useCloudStorage) {
+                
+                let stream = fs.createReadStream(outputPath);
+                var params = {Bucket: bucket, Key: path.join(jobPath, "response.zip"), Body: stream};
+                //write the response to the response.zip file folder and create write stream (or just upload the response?)
+                s3.upload(params, function(err, data) {
+                    if(err) {
+                      if(!responseIsSent) {
+                        res.status(500)
+                        res.send('Saving Response Error ' + error)
+                        responseIsSent = true;
+                      }  
+                    } else {
+                      fs.rmdir(directoryPath, {recursive:true}, (err) => {
+                        if (err)
+                        console.error("Unable to remove local job directory "+err);
+                      });
+                    }
+                });
+              }
+
+            })
           });
           
           if(!responseIsSent) {

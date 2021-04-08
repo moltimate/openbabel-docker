@@ -1,6 +1,8 @@
 # openbabel-docker
 The components necessary to build a docker container running an instance of 
-openbabel with its own HTTP API.
+openbabel with its own HTTP API. This container has the ability to use 
+cloud storage space on AWS using an S3 bucket or just run locally (see 
+steps below)
 
 ### Contents
 
@@ -11,6 +13,27 @@ openbabel with its own HTTP API.
 
 <a name="setup-run"></a>
 ### Setup & Run
+
+#### Configure Local or AWS usage of an OpenBabel Container
+When running the container on your own machine (vs. AWS ECS instance)
+
+If you would like the OpenBabel responses stored on AWS you need to configure a few things:
+1. Obtain your access key and secret access key from your AWS organization.
+2. Create a "config.json" file in the top level of this directory to contain your access key and secret access key.
+    This is a json formatted file for example:
+    { "accessKeyId":"<<ACCESS KEY>>", "secretAccessKey": "<<SECRET ACCESS KEY>>", "region": "<<AWS REGION>>" }
+2. On your AWS account make sure you have access to your S3 bucket
+3. In the index.js file, uncomment AWS.config.loadFromPath('./config.json');  towards the top of the file
+4. Make sure the global variable, useCloudStorage, declared with the other initializations, is set to true.
+5. Set the variable bucket = "<<Your s3 Bucket Name>>"
+5. Create and Run Docker Image following steps below.
+
+If you would like OpenBabel to not store responses on AWS and would prefer just they 
+stored locally in the container (removes need for AWS):
+1. Set useCloudStorage to false
+2. Comment out (if not already) AWS.config.loadFromPath('./config.json'); towards the top of the file.
+
+
 
 #### Docker Toolbox
 
@@ -24,6 +47,8 @@ have port 8000 exposed.
 
     ```docker run -p [external port to be hit]:8000 [name of the docker image]```
     
+    external port to be hit can be set if 8000 is already being used wherever you are running it. (Docker routes to your
+    docker port for the container)
 Users can now interact with the instance of Open Babel in the docker container. The following output should appear:
 
     ```
@@ -38,6 +63,13 @@ To interact with the API for the container, find the ip address of the docker ho
     ```docker-machine ip```
     
 The displayed IP will be the address to send http requests to, along with the external port chosen when creating the container.
+
+
+When deploying the container to AWS ECS instance:
+Remove reference to: (Comment it out or remove it completely)
+    ```AWS.config.loadFromPath('./config.json');``` 
+    the IAM role of your ECS instance needs to have access to read and write the specific s3 bucket you are using.
+
 
 <a name="api-summary"></a>
 ### API Summary
